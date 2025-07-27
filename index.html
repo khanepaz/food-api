@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="fa" data-bs-theme="light"> <!-- data-bs-theme="dark" for dark mode -->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>لیست غذاها - TheMealDB</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="css/bootstrap.rtl.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+   
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1 class="mb-4">لیست دسته‌بندی‌ها و غذاها</h1>
+        <button id="reloadBtn" class="btn btn-primary btn-reload" onclick="loadCategories()">
+            <span class="spinner-border spinner-border-sm loading-spinner" id="reloadSpinner" role="status" aria-hidden="true"></span>
+            بارگذاری مجدد دسته‌بندی‌ها
+        </button>
+    </div>
+
+    <!-- Status/Loading Message -->
+    <div id="statusMessage" class="alert alert-info text-center" role="alert" style="display:none;"></div>
+
+    <!-- Main Content Area -->
+    <div class="row" id="mainContent">
+        <!-- Categories will be loaded here -->
+    </div>
+</div>
+
+<div class="footer text-muted">
+    <small>© 2025 TheMealDB - Proudly built in the UK</small>
+</div>
+
+<!-- Bootstrap 5 JS Bundle with Popper -->
+<script src="js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const API_KEY = '1';
+    const BASE_URL = `https://www.themealdb.com/api/json/v1/${API_KEY}`;
+    const statusMessage = document.getElementById('statusMessage');
+    const mainContent = document.getElementById('mainContent');
+    const reloadBtn = document.getElementById('reloadBtn');
+    const reloadSpinner = document.getElementById('reloadSpinner');
+
+    // Simple translation map
+    const translations = {
+        "Category": "دسته‌بندی",
+        "Area": "منطقه",
+        "Instructions": "دستور پخت",
+        "Ingredients": "مواد اولیه",
+        "Measures": "مقادیر",
+        "Tags": "برچسب‌ها",
+        "YouTube": "ویدیو",
+        "Source": "منبع"
+    };
+
+    function translate(key) {
+        return translations[key] || key;
+    }
+
+    function showStatus(message, type = 'info') {
+        statusMessage.textContent = message;
+        statusMessage.className = `alert alert-${type} text-center`;
+        statusMessage.style.display = 'block';
+    }
+
+    function hideStatus() {
+        statusMessage.style.display = 'none';
+    }
+
+    function showSpinner(buttonElement) {
+        const spinner = buttonElement.querySelector('.loading-spinner');
+        if (spinner) spinner.style.display = 'inline-block';
+        buttonElement.disabled = true;
+    }
+
+    function hideSpinner(buttonElement) {
+        const spinner = buttonElement.querySelector('.loading-spinner');
+        if (spinner) spinner.style.display = 'none';
+        buttonElement.disabled = false;
+    }
+
+    // 1. Load and display list of categories
+    async function loadCategories() {
+        showSpinner(reloadBtn);
+        showStatus('در حال بارگذاری دسته‌بندی‌ها...', 'info');
+        mainContent.innerHTML = ''; // Clear previous content
+
+        try {
+            const response = await fetch(`${BASE_URL}/categories.php`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+
+            if (data.categories && data.categories.length > 0) {
+                let html = '<div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">'; // Responsive grid
+                data.categories.forEach(category => {
+                    html += `
+                        <div class="col">
+                            <div class="card h-100 shadow-sm">
+                                <img src="${category.strCategoryThumb}" class="card-img-top" alt="${category.strCategory}">
+                                <div class="card-body d-flex flex-column">
+                                    <h5 class="card-title">${category.strCategory}</h5>
+                                    <p class="card-text flex-grow-1"><small class="text-muted">${category.strCategoryDescription.substring(0, 100)}...</small></p>
+                                    <button class="btn btn-outline-primary mt-auto" onclick="loadMealsByCategory('${category.strCategory}')">
+                                        مشاهده غذاها
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                mainContent.innerHTML = html;
+                hideStatus();
+            } else {
+                showStatus('هیچ دسته‌بندی‌ای یافت نشد.', 'warning');
+            }
+        } catch (error) {
+            console.error('Error loading categories:', error);
+            showStatus('خطا در بارگذاری دسته‌بندی‌ها.', 'danger');
+        } finally {
+            hideSpinner(reloadBtn);
+        }
+    }
+
+// 2. Load and display list of meals by category
+async function loadMealsByCategory(categoryName) {
+    const tempBtn = event.currentTarget; // Get the clicked button
+    showSpinner(tempBtn);
+    showStatus(`در حال بارگذاری غذاهای دسته ${categoryName}...`, 'info');
+    mainContent.innerHTML = ''; // Clear previous content
+
+    try {
+        // 1. Get the full list of categories to find the description
+        const categoriesResponse = await fetch(`${BASE_URL}/categories.php`);
+        if (!categoriesResponse.ok) throw new Error(`HTTP error! status: ${categoriesResponse.status}`);
+        const categoriesData = await categoriesResponse.json();
+
+        // 2. Find the specific category object to get its full description
+        let categoryDescription = "توضیحاتی یافت نشد.";
+        if (categoriesData.categories) {
+            const foundCategory = categoriesData.categories.find(cat => cat.strCategory === categoryName);
+            if (foundCategory) {
+                categoryDescription = foundCategory.strCategoryDescription;
+            }
+        }
+
+        // 3. Get the list of meals for the selected category
+        const mealsResponse = await fetch(`${BASE_URL}/filter.php?c=${encodeURIComponent(categoryName)}`);
+        if (!mealsResponse.ok) throw new Error(`HTTP error! status: ${mealsResponse.status}`);
+        const mealsData = await mealsResponse.json();
+
+        if (mealsData.meals && mealsData.meals.length > 0) {
+            // 4. Build the HTML output
+            let html = `<div class="mb-4">
+                            <h2 class="mb-3">غذاهای دسته: ${categoryName}</h2>
+                            <div class="bg-light p-3 rounded mb-4">
+                                <p class="mb-0">${categoryDescription}</p>
+                            </div>
+                            <div class="d-flex justify-content-end">
+                                <button class="btn btn-secondary" onclick="loadCategories()">بازگشت به دسته‌بندی‌ها</button>
+                            </div>
+                        </div>`;
+            html += '<div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">'; // Responsive grid
+            mealsData.meals.forEach(meal => {
+                html += `
+                    <div class="col">
+                        <div class="card h-100 shadow-sm">
+                            <img src="${meal.strMealThumb}" class="card-img-top" alt="${meal.strMeal}">
+                            <div class="card-body d-flex flex-column">
+                                <h5 class="card-title">${meal.strMeal}</h5>
+                                <button class="btn btn-primary mt-auto" onclick="loadMealDetail('${meal.idMeal}')">
+                                    جزئیات
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            mainContent.innerHTML = html;
+            hideStatus();
+        } else {
+            mainContent.innerHTML = `<div class="col-12">
+                                        <div class="alert alert-warning text-center" role="alert">
+                                            هیچ غذایی در دسته ${categoryName} یافت نشد.
+                                            <div class="mt-2"><button class="btn btn-sm btn-outline-secondary" onclick="loadCategories()">بازگشت به دسته‌بندی‌ها</button></div>
+                                        </div>
+                                    </div>`;
+            hideStatus();
+        }
+    } catch (error) {
+        console.error('Error loading meals by category:', error);
+        showStatus('خطا در بارگذاری لیست غذاها.', 'danger');
+    } finally {
+        // Attempt to hide spinner for the specific button (might not work perfectly after re-render)
+        // A more robust approach would manage button state differently.
+        // For now, we'll just try to hide it on the element that triggered the event.
+        if (tempBtn) {
+             hideSpinner(tempBtn);
+        }
+    }
+}
+   
+
+    // 3. Load and display full details of a meal
+    async function loadMealDetail(mealId) {
+         // Find any active spinner button in the current context if needed, or just use a general indicator
+         showStatus('در حال بارگذاری جزئیات غذا...', 'info');
+         mainContent.innerHTML = '<div class="d-flex justify-content-center my-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>'; // Show a central loading spinner
+
+        try {
+            const response = await fetch(`${BASE_URL}/lookup.php?i=${mealId}`);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const data = await response.json();
+
+            if (data.meals && data.meals.length > 0) {
+                const meal = data.meals[0];
+                let html = `
+                    <div class="row justify-content-center">
+                        <div class="col-lg-8">
+                            <div class="card meal-detail-card shadow-sm mb-4">
+                                <div class="card-header bg-primary text-white">
+                                    <h2 class="mb-0">${meal.strMeal}</h2>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row mb-4">
+                                        <div class="col-md-5 mb-3 mb-md-0">
+                                            <img src="${meal.strMealThumb}" class="img-fluid rounded" alt="${meal.strMeal}">
+                                        </div>
+                                        <div class="col-md-7">
+                                            <p><strong>${translate("Category")}:</strong> ${meal.strCategory}</p>
+                                            <p><strong>${translate("Area")}:</strong> ${meal.strArea}</p>
+                                            ${meal.strTags ? `<p><strong>${translate("Tags")}:</strong> ${meal.strTags}</p>` : ''}
+                                            ${meal.strYoutube ? `<p><strong>${translate("YouTube")}:</strong> <a href="${meal.strYoutube}" target="_blank" class="btn btn-outline-danger btn-sm">مشاهده ویدیو</a></p>` : ''}
+                                            ${meal.strSource ? `<p><strong>${translate("Source")}:</strong> <a href="${meal.strSource}" target="_blank">لینک منبع</a></p>` : ''}
+                                        </div>
+                                    </div>
+
+                                    <h5>${translate("Instructions")}</h5>
+                                    <p class="instructions">${meal.strInstructions}</p>
+
+                                    <h5>${translate("Ingredients")}</h5>
+                                    <ul class="list-group list-group-flush">
+                `;
+
+                // Add ingredients and measures
+                for (let i = 1; i <= 20; i++) {
+                    const ingredient = meal[`strIngredient${i}`];
+                    const measure = meal[`strMeasure${i}`];
+                    if (ingredient && ingredient.trim() !== "") {
+                        html += `<li class="list-group-item d-flex justify-content-between align-items-center">
+                                    <span>${ingredient}</span>
+                                    <span class="badge bg-secondary rounded-pill">${measure}</span>
+                                 </li>`;
+                    }
+                }
+
+                html += `
+                                    </ul>
+                                </div>
+                                <div class="card-footer text-muted text-center">
+                                    <button class="btn btn-secondary" onclick="goBack()">بازگشت</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                mainContent.innerHTML = html;
+                hideStatus();
+            } else {
+                showStatus('جزئیات غذا یافت نشد.', 'warning');
+            }
+        } catch (error) {
+            console.error('Error loading meal detail:', error);
+            showStatus('خطا در بارگذاری جزئیات غذا.', 'danger');
+        }
+    }
+
+    // Function to go back to the previous view (categories or meals)
+    // This is a simple implementation, a more robust history would be better
+    function goBack() {
+         // A simple way is to reload categories. A better way would be to manage state/history.
+         loadCategories();
+    }
+
+    // Initial load
+    window.addEventListener('DOMContentLoaded', (event) => {
+        loadCategories();
+    });
+</script>
+
+</body>
+</html>
