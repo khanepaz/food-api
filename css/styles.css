@@ -1,0 +1,47 @@
+
+body {
+    font-family: Tahoma, Arial, sans-serif;
+    padding-top: 20px;
+    background-color: #f8f9fa; /* Light gray background */
+}
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+.card-img-top {
+    object-fit: cover; /* Ensures image fills the area without distortion */
+    height: 180px; /* Set a fixed height for consistency */
+}
+.meal-detail-card img {
+    max-width: 100%;
+    height: auto;
+}
+.instructions {
+    white-space: pre-wrap;
+    background-color: #e9ecef;
+    padding: 15px;
+    border-radius: 5px;
+    border-right: 4px solid #0d6efd; /* Blue accent */
+}
+.loading-spinner {
+    display: none; /* Hidden by default */
+    width: 3rem;
+    height: 3rem;
+    border: .25em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border .75s linear infinite;
+}
+@keyframes spinner-border {
+    to { transform: rotate(360deg); }
+}
+.footer {
+    margin-top: 40px;
+    padding: 20px;
+    text-align: center;
+    background-color: #e9ecef;
+    border-radius: 5px;
+}
+.btn-reload {
+    margin-bottom: 20px;
+}
